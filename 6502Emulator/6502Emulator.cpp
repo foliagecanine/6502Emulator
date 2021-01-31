@@ -217,12 +217,15 @@ public:
                 return;
             }
             // Check for standalone instructions
-            // These are instructions the last 5 bits are 0b00000, 0b01000, or 0b11010
-            if (opcode_bbbcc(opcode) == 0b00000 || opcode_bbbcc(opcode) == 0b01000 || opcode_bbbcc(opcode) == 0b11010) {
+            // These are instructions the last 5 bits are 0b00000 or 0b01000 or its first 4 bits are >= 8 and its last four bits are A
+            if (opcode_bbbcc(opcode) == 0b00000 || opcode_bbbcc(opcode) == 0b01000 || (((opcode&0xF0)>0x80) && ((opcode&0x0F)==0x0A))) {
                 instruction_standalone();
             }
             else if (opcode_cc(opcode) == 1) {
                 decode_01();
+            }
+            else if (opcode_cc(opcode) == 0 && opcode_bbb(opcode) == 4) {
+                branch_00();
             }
             else if (opcode_cc(opcode) == 0) {
                 decode_00();
@@ -793,6 +796,81 @@ private:
         }
     }
 
+    void branch_00() {
+        BYTE aaa = opcode_aaa(opcode);
+        if (cycle == 3) {
+            next_instr();
+            return;
+        }
+        switch ((BRANCH_00)aaa) {
+        case BRANCH_00::BCC:
+            if (!P.C) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BCS:
+            if (P.C) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BVC:
+            if (!P.V) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BVS:
+            if (P.V) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BPL:
+            if (!P.N) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BMI:
+            if (P.N) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BEQ:
+            if (!P.Z) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        case BRANCH_00::BNE:
+            if (P.Z) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
+        }
+        signed char t = (signed char)space.read(++PC);
+        PTR = PC + t;
+        if ((PTR & 0xFF00) == (PC & 0xFF00)) {
+            PC = PTR;
+            next_instr();
+            return;
+        }
+        PC = PTR;
+        cycle++;
+    }
+
     void instruction_standalone() {
         switch ((INSTRS)opcode) {
         case INSTRS::NOP:
@@ -801,70 +879,85 @@ private:
             break;
         case INSTRS::CLC: 
             P.C = 0;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::SEC:
             P.C = 1;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::CLD:
             P.D = 0;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::SED:
             P.D = 1;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::CLV:
             P.V = 1;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::CLI:
             P.I = 0;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::SEI:
             P.I = 1;
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::INX:
             X++;
             set_nflags(X);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::DEX:
             X--;
             set_nflags(X);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::INY:
             Y++;
             set_nflags(Y);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::DEY:
             Y--;
             set_nflags(Y);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::TAX:
             X = A;
             set_nflags(X);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::TXA:
             A = X;
             set_nflags(A);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::TAY:
             Y = A;
             set_nflags(Y);
+            space.read(PC + 1);
             next_instr();
             break;
         case INSTRS::TYA:
             A = Y;
             set_nflags(A);
+            space.read(PC + 1);
             next_instr();
             break;
         }
@@ -908,6 +1001,26 @@ int main()
     CPU cpu(space);
     cpu.reset();
     //while (true)
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
+        cpu.tick();
         cpu.tick();
         cpu.tick();
         cpu.tick();
