@@ -592,15 +592,12 @@ private:
         BYTE aaa = opcode_aaa(opcode);
         BYTE bbb = opcode_bbb(opcode);
         bool done = false;
-        switch((OPCODE_01)aaa) {
+        switch ((OPCODE_01)aaa) {
         case OPCODE_01::LDA:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = IMM;
                 set_nflags(IMM);
-#ifdef DEBUG_6502
-                cout << "LDA" << endl;
-#endif
                 next_instr();
             }
             else {
@@ -610,9 +607,6 @@ private:
         case OPCODE_01::STA:
             done = readaddr_01(bbb, true, A);
             if (done) {
-#ifdef DEBUG_6502
-                cout << "STA" << endl;
-#endif
                 next_instr();
             }
             else {
@@ -623,9 +617,6 @@ private:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = set_aflags(A, IMM, false);
-#ifdef DEBUG_6502
-                cout << "ADC" << endl;
-#endif
                 next_instr();
             }
             break;
@@ -633,11 +624,26 @@ private:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = set_aflags(A, IMM, true);
-#ifdef DEBUG_6502
-                cout << "SBC" << endl;
-#endif
+                next_instr();
+
+            }
+            break;
+        case OPCODE_01::ORA:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                A |= IMM;
+                set_nflags(A);
                 next_instr();
             }
+            break;
+        case OPCODE_01::AND:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                A &= IMM;
+                set_nflags(A);
+                next_instr();
+            }
+            break;
         }
     }
 
@@ -673,9 +679,6 @@ private:
             done = readaddr_00(bbb);
             if (cycle == 2) {
                 PC = PTR-1;
-#ifdef DEBUG_6502
-                cout << "JMP" << endl;
-#endif
                 next_instr();
             }
             else {
@@ -692,9 +695,6 @@ private:
                 case 4:
                     set_PTR_upper(space.read(PTR2));
                     PC = PTR - 1;
-#ifdef DEBUG_6502
-                    cout << "JMP (abs)" << endl;
-#endif
                     next_instr();
                 }
             }

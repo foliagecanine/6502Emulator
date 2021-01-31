@@ -8,13 +8,17 @@ Opcodes done:
  - [x] JMP
  - [x] ADC
  - [x] SBC
- - [x] CLC
- - [x] SEC
- - [x] CLD
- - [x] SED
- - [x] CLV
- - [x] CLI
- - [x] SEI
+ - [x] All flag opcodes (CLC, SEC, etc.)
+ - [x] INX
+ - [x] DEX
+ - [x] INY
+ - [x] DEY
+ - [x] TAX
+ - [x] TXA
+ - [x] TAY
+ - [x] TYA
+ - [x] ORA
+ - [x] AND
  - [ ] Other opcodes
  
 Internal stuff done:
