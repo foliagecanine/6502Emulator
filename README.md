@@ -24,6 +24,7 @@ Opcodes done:
  - [x] CPY
  - [x] LDY
  - [x] STY
+ - [x] All branch instructions
  - [ ] Other opcodes
  
 Internal stuff done:
