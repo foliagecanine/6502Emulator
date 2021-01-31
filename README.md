@@ -22,6 +22,8 @@ Opcodes done:
  - [x] BIT
  - [x] CPX
  - [x] CPY
+ - [x] LDY
+ - [x] STY
  - [ ] Other opcodes
  
 Internal stuff done:

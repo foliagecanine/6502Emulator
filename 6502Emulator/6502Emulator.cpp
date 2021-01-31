@@ -621,12 +621,18 @@ private:
                 A = set_aflags(A, IMM, false, true);
                 next_instr();
             }
+            else {
+                cycle++;
+            }
             break;
         case OPCODE_01::SBC:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = set_aflags(A, IMM, true, true);
                 next_instr();
+            }
+            else {
+                cycle++;
             }
             break;
         case OPCODE_01::ORA:
@@ -636,6 +642,9 @@ private:
                 set_nflags(A);
                 next_instr();
             }
+            else {
+                cycle++;
+            }
             break;
         case OPCODE_01::AND:
             done = readaddr_01(bbb, false, 0);
@@ -643,6 +652,9 @@ private:
                 A &= IMM;
                 set_nflags(A);
                 next_instr();
+            }
+            else {
+                cycle++;
             }
             break;
         case OPCODE_01::EOR:
@@ -652,6 +664,9 @@ private:
                 set_nflags(A);
                 next_instr();
             }
+            else {
+                cycle++;
+            }
             break;
         case OPCODE_01::CMP:
             done = readaddr_01(bbb, false, 0);
@@ -659,6 +674,9 @@ private:
                 IMM = set_aflags(A, IMM, true, false);
                 set_nflags(IMM);
                 next_instr();
+            }
+            else {
+                cycle++;
             }
             break;
         }
@@ -691,11 +709,11 @@ private:
         BYTE aaa = opcode_aaa(opcode);
         BYTE bbb = opcode_bbb(opcode);
         bool done = false;
-        switch((OPCODE_00)aaa) {
+        switch ((OPCODE_00)aaa) {
         case OPCODE_00::JMP:
             done = readaddr_00(bbb);
             if (cycle == 2) {
-                PC = PTR-1;
+                PC = PTR - 1;
                 next_instr();
             }
             else {
@@ -726,6 +744,9 @@ private:
                 set_nflags(IMM);
                 next_instr();
             }
+            else {
+                cycle++;
+            }
             break;
         case OPCODE_00::CPX:
             done = readaddr_00(bbb);
@@ -734,7 +755,10 @@ private:
                 set_nflags(IMM);
                 next_instr();
             }
-            break; 
+            else {
+                cycle++;
+            }
+            break;
         case OPCODE_00::CPY:
             done = readaddr_00(bbb);
             if (done) {
@@ -742,8 +766,31 @@ private:
                 set_nflags(IMM);
                 next_instr();
             }
+            else {
+                cycle++;
+            }
             break;
-        } 
+        case OPCODE_00::LDY:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                Y = IMM;
+                set_nflags(IMM);
+                next_instr();
+            }
+            else {
+                cycle++;
+            }
+            break;
+        case OPCODE_00::STY:
+            done = readaddr_01(bbb, true, Y);
+            if (done) {
+                next_instr();
+            }
+            else {
+                cycle++;
+            }
+            break;
+        }
     }
 
     void instruction_standalone() {
