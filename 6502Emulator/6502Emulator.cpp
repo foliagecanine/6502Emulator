@@ -218,7 +218,7 @@ public:
             }
             // Check for standalone instructions
             // These are instructions the last 5 bits are 0b00000, 0b01000, or 0b11010
-            if (opcode_bbbcc(opcode)==0b00000||opcode_bbbcc(opcode)==0b01000||opcode_bbbcc(opcode)==0b11010) {
+            if (opcode_bbbcc(opcode) == 0b00000 || opcode_bbbcc(opcode) == 0b01000 || opcode_bbbcc(opcode) == 0b11010) {
                 instruction_standalone();
             }
             else if (opcode_cc(opcode) == 1) {
@@ -394,6 +394,23 @@ private:
         return op & 0b00011111;
     }
 
+    // Set non-arithmetic flags (N, Z)
+    void set_nflags(BYTE test) {
+        P.Z = (test == 0);
+        P.N = (test > 127);
+    }
+
+    // Set arithmetic flags (C, V) {
+    void set_aflags(BYTE testA, BYTE testB, bool sub) {
+        BYTE result = sub ? (testA - testB) : (testA + testB);
+        if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
+            P.V = 1;
+        }
+        if ((sub && (testB > testA) || testB + testA < testA)) {
+            P.C = 1;
+        }
+    }
+
     void next_instr() {
         cycle = 0;
         PC++;
@@ -540,6 +557,7 @@ private:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = IMM;
+                set_nflags(IMM);
 #ifdef DEBUG_6502
                 cout << "LDA" << endl;
 #endif

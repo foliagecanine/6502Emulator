@@ -11,6 +11,6 @@ Opcodes done:
  - [ ] Other opcodes
  
 Internal stuff done:
- - [ ] Non-arithmetic flags (N, Z)
+ - [x] Non-arithmetic flags (N, Z)
  - [ ] Flow control flags (B, I)
- - [ ] Arithmetic flags (C, V, D)
+ - [x] Arithmetic flags (C, V, D)
