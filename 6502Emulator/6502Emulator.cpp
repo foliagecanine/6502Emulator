@@ -397,6 +397,48 @@ private:
         return op & 0b00011111;
     }
 
+    void push(BYTE val) {
+        space.write(0x100 + (WORD)SP, val);
+        SP--;
+    }
+
+    BYTE pop() {
+        SP++;
+        return space.read(0x100 + (WORD)SP);
+    }
+
+    BYTE get_pflags() {
+        BYTE r = 0;
+        r = (r | P.N) << 1;
+        r = (r | P.V) << 1;
+        r = (r | P.U) << 1;
+        r = (r | P.B) << 1;
+        r = (r | P.D) << 1;
+        r = (r | P.I) << 1;
+        r = (r | P.Z) << 1;
+        r = (r | P.C);
+        return r;
+    }
+
+    void set_pflags(BYTE val) {
+        BYTE r = val;
+        P.C = r & 1;
+        r >>= 1;
+        P.Z = r & 1;
+        r >>= 1;
+        P.I = r & 1;
+        r >>= 1;
+        P.D = r & 1;
+        r >>= 1;
+        P.B = r & 1;
+        r >>= 1;
+        P.U = r & 1;
+        r >>= 1;
+        P.V = r & 1;
+        r >>= 1;
+        P.N = r;
+    }
+
     // Set non-arithmetic flags (N, Z)
     void set_nflags(BYTE test) {
         P.Z = (test == 0);
@@ -960,6 +1002,48 @@ private:
             space.read(PC + 1);
             next_instr();
             break;
+        case INSTRS::PHP:
+            switch (cycle) {
+            case 2:
+                space.read(PC + 1);
+                cycle++;
+                break;
+            case 3:
+                push(get_pflags());
+                next_instr();
+            }
+            break;
+        case INSTRS::PLP:
+            switch (cycle) {
+            case 2:
+                space.read(PC + 1);
+                cycle++;
+                break;
+            case 3:
+                set_pflags(pop());
+                next_instr();
+            }
+        case INSTRS::PHA:
+            switch (cycle) {
+            case 2:
+                space.read(PC + 1);
+                cycle++;
+                break;
+            case 3:
+                push(A);
+                next_instr();
+            }
+            break;
+        case INSTRS::PLA:
+            switch (cycle) {
+            case 2:
+                space.read(PC + 1);
+                cycle++;
+                break;
+            case 3:
+                A = pop();
+                next_instr();
+            }
         }
     }
 };

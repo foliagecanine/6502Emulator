@@ -25,6 +25,10 @@ Opcodes done:
  - [x] LDY
  - [x] STY
  - [x] All branch instructions
+ - [x] PHP
+ - [x] PLP
+ - [x] PHA
+ - [x] PLA
  - [ ] Other opcodes
  
 Internal stuff done:
