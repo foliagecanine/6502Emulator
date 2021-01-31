@@ -400,15 +400,55 @@ private:
         P.N = (test > 127);
     }
 
-    // Set arithmetic flags (C, V) {
-    void set_aflags(BYTE testA, BYTE testB, bool sub) {
-        BYTE result = sub ? (testA - testB) : (testA + testB);
-        if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
-            P.V = 1;
-        }
-        if ((sub && (testB > testA) || testB + testA < testA)) {
+    BYTE BCD_add(BYTE a, BYTE b) {
+        BYTE convA = (a & 0xF) + ((a >> 4) * 10);
+        BYTE convB = (b & 0xF) + ((b >> 4) * 10);
+
+        BYTE result = convA + convB;
+        if (result > 100) {
             P.C = 1;
+            result -= 100;
         }
+
+        BYTE ret = result%10;
+        ret |= (result / 10) << 4;
+        return ret;
+    }
+
+    BYTE BCD_sub(BYTE a, BYTE b) {
+        BYTE convA = (a & 0xF) + ((a >> 4) * 10);
+        BYTE convB = (b & 0xF) + ((b >> 4) * 10);
+
+        BYTE result = convA - convB;
+        if (result > 100) {
+            P.C = 1;
+            result += 100;
+        }
+
+        BYTE ret = result % 10;
+        ret |= (result / 10) << 4;
+        return ret;
+    }
+
+    // Set arithmetic flags (C, V) {
+    BYTE set_aflags(BYTE testA, BYTE testB, bool sub) {
+        BYTE result;
+        if (P.D) {
+            result = sub ? BCD_sub(testA, testB) : BCD_add(testA, testB);
+        }
+        else {
+            result = sub ? (testA - testB) : (testA + testB);
+            if (P.C == 1) {
+                result += sub ? -1 : 1;
+            }
+            if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
+                P.V = 1;
+            }
+            if ((sub && (testB > testA) || testB + testA < testA)) {
+                P.C = 1;
+            }
+        }
+        return result;
     }
 
     void next_instr() {
@@ -579,6 +619,25 @@ private:
                 cycle++;
             }
             break;
+        case OPCODE_01::ADC:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                A = set_aflags(A, IMM, false);
+#ifdef DEBUG_6502
+                cout << "ADC" << endl;
+#endif
+                next_instr();
+            }
+            break;
+        case OPCODE_01::SBC:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                A = set_aflags(A, IMM, true);
+#ifdef DEBUG_6502
+                cout << "SBC" << endl;
+#endif
+                next_instr();
+            }
         }
     }
 
@@ -647,15 +706,39 @@ private:
     }
 
     void instruction_standalone() {
-        if ((INSTRS)opcode == INSTRS::NOP) {
-            switch (cycle) {
-            case 1:
-                space.read(PC + 1);
-                break;
-            case 2:
-                next_instr();
-                break;
-            }
+        switch ((INSTRS)opcode) {
+        case INSTRS::NOP:
+            space.read(PC + 1);
+            next_instr();
+            break;
+        case INSTRS::CLC: 
+            P.C = 0;
+            next_instr();
+            break;
+        case INSTRS::SEC:
+            P.C = 1;
+            next_instr();
+            break;
+        case INSTRS::CLD:
+            P.D = 0;
+            next_instr();
+            break;
+        case INSTRS::SED:
+            P.D = 1;
+            next_instr();
+            break;
+        case INSTRS::CLV:
+            P.V = 1;
+            next_instr();
+            break;
+        case INSTRS::CLI:
+            P.I = 0;
+            next_instr();
+            break;
+        case INSTRS::SEI:
+            P.I = 1;
+            next_instr();
+            break;
         }
     }
 };

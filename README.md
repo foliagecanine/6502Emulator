@@ -6,8 +6,15 @@ Opcodes done:
  - [x] LDA
  - [x] STA
  - [x] JMP
- - [ ] ADC
- - [ ] SBC
+ - [x] ADC
+ - [x] SBC
+ - [x] CLC
+ - [x] SEC
+ - [x] CLD
+ - [x] SED
+ - [x] CLV
+ - [x] CLI
+ - [x] SEI
  - [ ] Other opcodes
  
 Internal stuff done:
