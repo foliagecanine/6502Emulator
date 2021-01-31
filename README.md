@@ -19,6 +19,9 @@ Opcodes done:
  - [x] TYA
  - [x] ORA
  - [x] AND
+ - [x] BIT
+ - [x] CPX
+ - [x] CPY
  - [ ] Other opcodes
  
 Internal stuff done:
