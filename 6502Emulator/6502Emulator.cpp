@@ -739,6 +739,46 @@ private:
             P.I = 1;
             next_instr();
             break;
+        case INSTRS::INX:
+            X++;
+            set_nflags(X);
+            next_instr();
+            break;
+        case INSTRS::DEX:
+            X--;
+            set_nflags(X);
+            next_instr();
+            break;
+        case INSTRS::INY:
+            Y++;
+            set_nflags(Y);
+            next_instr();
+            break;
+        case INSTRS::DEY:
+            Y--;
+            set_nflags(Y);
+            next_instr();
+            break;
+        case INSTRS::TAX:
+            X = A;
+            set_nflags(X);
+            next_instr();
+            break;
+        case INSTRS::TXA:
+            A = X;
+            set_nflags(A);
+            next_instr();
+            break;
+        case INSTRS::TAY:
+            Y = A;
+            set_nflags(Y);
+            next_instr();
+            break;
+        case INSTRS::TYA:
+            A = Y;
+            set_nflags(A);
+            next_instr();
+            break;
         }
     }
 };
