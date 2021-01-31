@@ -625,7 +625,6 @@ private:
             if (done) {
                 A = set_aflags(A, IMM, true);
                 next_instr();
-
             }
             break;
         case OPCODE_01::ORA:
@@ -641,6 +640,22 @@ private:
             if (done) {
                 A &= IMM;
                 set_nflags(A);
+                next_instr();
+            }
+            break;
+        case OPCODE_01::EOR:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                A ^= IMM;
+                set_nflags(A);
+                next_instr();
+            }
+            break;
+        case OPCODE_01::CMP:
+            done = readaddr_01(bbb, false, 0);
+            if (done) {
+                IMM = set_aflags(A, IMM, true);
+                set_nflags(IMM);
                 next_instr();
             }
             break;
