@@ -431,7 +431,7 @@ private:
     }
 
     // Set arithmetic flags (C, V) {
-    BYTE set_aflags(BYTE testA, BYTE testB, bool sub) {
+    BYTE set_aflags(BYTE testA, BYTE testB, bool sub, bool v) {
         BYTE result;
         if (P.D) {
             result = sub ? BCD_sub(testA, testB) : BCD_add(testA, testB);
@@ -441,8 +441,10 @@ private:
             if (P.C == 1) {
                 result += sub ? -1 : 1;
             }
-            if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
-                P.V = 1;
+            if (v) {
+                if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
+                    P.V = 1;
+                }
             }
             if ((sub && (testB > testA) || testB + testA < testA)) {
                 P.C = 1;
@@ -616,14 +618,14 @@ private:
         case OPCODE_01::ADC:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                A = set_aflags(A, IMM, false);
+                A = set_aflags(A, IMM, false, true);
                 next_instr();
             }
             break;
         case OPCODE_01::SBC:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                A = set_aflags(A, IMM, true);
+                A = set_aflags(A, IMM, true, true);
                 next_instr();
             }
             break;
@@ -654,7 +656,7 @@ private:
         case OPCODE_01::CMP:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                IMM = set_aflags(A, IMM, true);
+                IMM = set_aflags(A, IMM, true, false);
                 set_nflags(IMM);
                 next_instr();
             }
@@ -715,6 +717,30 @@ private:
             }
             else {
                 cycle++;
+            }
+            break;
+        case OPCODE_00::BIT:
+            done = readaddr_00(bbb);
+            if (done) {
+                IMM = A & IMM;
+                set_nflags(IMM);
+                next_instr();
+            }
+            break;
+        case OPCODE_00::CPX:
+            done = readaddr_00(bbb);
+            if (done) {
+                IMM = set_aflags(X, IMM, true, false);
+                set_nflags(IMM);
+                next_instr();
+            }
+            break; 
+        case OPCODE_00::CPY:
+            done = readaddr_00(bbb);
+            if (done) {
+                IMM = set_aflags(Y, IMM, true, false);
+                set_nflags(IMM);
+                next_instr();
             }
             break;
         } 
