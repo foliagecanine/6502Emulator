@@ -37,9 +37,14 @@ Opcodes done:
  - [x] LDX
  - [x] INC
  - [x] DEC
- - [ ] Other opcodes
+ - [ ] JSR
+ - [ ] RTS
+ - [ ] BRK
+ - [ ] RTI
  
 Internal stuff done:
  - [x] Non-arithmetic flags (N, Z)
  - [ ] Flow control flags (B, I)
  - [x] Arithmetic flags (C, V, D)
+ - [ ] Interrupts
+ - [ ] NMIs
