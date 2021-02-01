@@ -3,12 +3,287 @@
 #include <vector>
 #include <fstream>
 #include <iomanip>
+#include <Windows.h>
 using namespace std;
 
 //#define DEBUG_6502
 
 typedef uint8_t BYTE;
 typedef uint16_t WORD;
+
+string ops[] = {
+    "BRK",
+    "BPL r",
+    "JSR a",
+    "BMI r",
+    "RTI",
+    "BVC r",
+    "RTS",
+    "BVS r",
+    "ERR",
+    "BCC r",
+    "LDY #",
+    "BCS r",
+    "CPY #",
+    "BNE r",
+    "CPX #",
+    "BEQ r",
+
+    "ORA (d,X)",
+    "ORA (d),Y",
+    "AND (d,X)",
+    "AND (d),Y",
+    "EOR (d,X)",
+    "EOR (d),Y",
+    "ADC (d,X)",
+    "ADC (d),Y",
+    "STA (d,X)",
+    "STA (d),Y",
+    "LDA (d,X)",
+    "LDA (d),Y",
+    "CMP (d,X)",
+    "CMP (d),Y",
+    "SBC (d,X)",
+    "SBC (d),Y",
+
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "LDX #",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+
+    "ERR",
+    "ERR",
+    "BIT d",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "STY d",
+    "STY d,X",
+    "LDY d",
+    "LDY d,X",
+    "CPY d",
+    "ERR",
+    "CPX d",
+    "ERR",
+
+    "ORA d",
+    "ORA d,X",
+    "AND d",
+    "AND d,X",
+    "EOR d",
+    "EOR d,X",
+    "ADC d",
+    "ADC d,X",
+    "STA d",
+    "STA d,X",
+    "LDA d",
+    "LDA d,X",
+    "CMP d",
+    "CMP d,X",
+    "SBC d",
+    "SBC d,X",
+
+    "ASL d",
+    "ASL d,X",
+    "ROL d",
+    "ROL d,X",
+    "LSR d",
+    "LSR d,X",
+    "ROR d",
+    "ROR d,X",
+    "STX d",
+    "STX d,Y",
+    "LDX d",
+    "LDX d,Y",
+    "DEC d",
+    "DEC d,X",
+    "INC d",
+    "INC d,X",
+
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+
+    "PHP",
+    "CLC",
+    "PLP",
+    "SEC",
+    "PHA",
+    "CLI",
+    "PLA",
+    "SEI",
+    "DEY",
+    "TYA",
+    "TAY",
+    "CLV",
+    "INY",
+    "CLD",
+    "INX",
+    "SED",
+
+    "ORA #",
+    "ORA a,Y",
+    "AND #",
+    "AND a,Y",
+    "EOR #",
+    "EOR a,Y",
+    "ADC #",
+    "ADC a,Y",
+    "ERR",
+    "STA a,Y",
+    "LDA #",
+    "LDA a,Y",
+    "CMP #",
+    "CMP a,Y",
+    "SBC #",
+    "SBC a,Y",
+    
+    "ASL A",
+    "ERR",
+    "ROL A",
+    "ERR",
+    "LSR A",
+    "ERR",
+    "ROR A",
+    "ERR",
+    "TXA",
+    "TXS",
+    "TAX",
+    "TSX",
+    "DEX",
+    "ERR",
+    "NOP",
+    "ERR",
+
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+
+    "ERR",
+    "ERR",
+    "BIT a",
+    "ERR",
+    "JMP a",
+    "ERR",
+    "JMP (a)",
+    "ERR",
+    "STY a",
+    "ERR",
+    "LDY a",
+    "LDY a,X",
+    "CPY a",
+    "ERR",
+    "CPX a",
+    "ERR",
+
+    "ORA a",
+    "ORA a,X",
+    "AND a",
+    "AND a,X",
+    "EOR a",
+    "EOR a,X",
+    "ADC a",
+    "ADC a,X",
+    "STA a",
+    "STA a,X",
+    "LDA a",
+    "LDA a,X",
+    "CMP a",
+    "CMP a,X",
+    "SBC a",
+    "SBC a,X",
+
+    "ASL a",
+    "ASL a,X",
+    "ROL a",
+    "ROL a,X",
+    "LSR a",
+    "LSR a,X",
+    "ROR a",
+    "ROR a,X",
+    "STX a",
+    "ERR",
+    "LDX a",
+    "LDX a,X",
+    "DEC a",
+    "DEC a,X",
+    "INC a",
+    "INC a,X",
+    
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+    "ERR",
+};
 
 class MEMSPACE {
 public:
@@ -275,9 +550,9 @@ public:
             if (cycle == 0) {
                 if (!in_interrupt) {
                     if (nmi_req) {
-//#ifdef DEBUG_6502
+#ifdef DEBUG_6502
                         cout << "NMI" << endl;
-//#endif
+#endif
                         nmisequence = true;
                     }
                     else if (irq_req) {
@@ -291,14 +566,15 @@ public:
                 cout << "FETCH" << endl;
 #endif
                 opcode = space.read(PC);
-                //cout << "OPCODE " << hex << (WORD)opcode << endl;
+                BYTE t = (opcode << 4) | (opcode >> 4);
+                cout << hex << PC << " " << (WORD)opcode << "/" << (WORD)t << ":" << ops[t] << endl;
                 dump_regs();
                 cycle++;
                 return;
             }
             // Check for standalone instructions
-            // These are instructions the last 5 bits are 0b00000 or 0b01000 or its first 4 bits are >= 8 and its last four bits are A
-            if (opcode_bbbcc(opcode) == 0b00000 || opcode_bbbcc(opcode) == 0b01000 || (((opcode&0xF0)>0x80) && ((opcode&0x0F)==0x0A))) {
+            // These are instructions the last 4 bits are 0b1000, bits 7 and 4-0 are 0, or its first 4 bits are >= 8 and its last four bits are A
+            if ((opcode_bbbcc(opcode) | 0b10000) == 0b11000 || ((opcode&0b10011111)==0) || (((opcode&0xF0)>0x80) && ((opcode&0x0F)==0x0A))) {
                 instruction_standalone();
             }
             else if (opcode_cc(opcode) == 1) {
@@ -1208,6 +1484,7 @@ private:
             else {
                 cycle++;
             }
+            break;
         case OPCODE_10::INC:
             if (!datready) {
                 done = readaddr_10(aaa, bbb, false, 0);
@@ -1410,6 +1687,7 @@ private:
                 next_instr();
                 break;
             }
+            break;
         case INSTRS::RTS:
             switch (cycle) {
             case 1:
@@ -1472,10 +1750,8 @@ int main()
     IO* io = space.create_ioaddr(0x6000, 1, &text_output);
     CPU cpu(space);
     cpu.reset();
-    //while (true)
-    for (int i = 0; i < 100; i++) {
+    while (true) {
         cpu.tick();
-        if (i == 50)
-            cpu.nmi();
+        Sleep(1);
     }
 }
