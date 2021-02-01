@@ -206,12 +206,92 @@ public:
                 break;
             }
         }
+        else if (nmisequence) {
+            switch (cycle) {
+            case 1:
+                nmi_req = false;
+                in_interrupt = true;
+                space.read(++PC);
+                PC--;
+                cycle++;
+                break;
+            case 2:
+                push((BYTE)(PC >> 8));
+                cycle++;
+                break;
+            case 3:
+                push((BYTE)PC);
+                cycle++;
+                break;
+            case 4:
+                push(get_pflags());
+                cycle++;
+                break;
+            case 5:
+                set_PC_lower(space.read(0xFFFA));
+                cycle++;
+                break;
+            case 6:
+                set_PC_upper(space.read(0xFFFB));
+                nmisequence = false;
+                cycle = 0;
+                break;
+            }
+        }
+        else if (irqsequence) {
+            switch (cycle) {
+            case 1:
+                irq_req = false;
+                in_interrupt = true;
+                space.read(++PC);
+                if (!P.B)
+                    PC--;
+                cycle++;
+                break;
+            case 2:
+                push((BYTE)(PC >> 8));
+                cycle++;
+                break;
+            case 3:
+                push((BYTE)PC);
+                cycle++;
+                break;
+            case 4:
+                push(get_pflags());
+                cycle++;
+                break;
+            case 5:
+                set_PC_lower(space.read(0xFFFE));
+                cycle++;
+                break;
+            case 6:
+                set_PC_upper(space.read(0xFFFF));
+                irqsequence = false;
+                cycle = 0;
+                break;
+            }
+        }
         else {
             if (cycle == 0) {
+                if (!in_interrupt) {
+                    if (nmi_req) {
+//#ifdef DEBUG_6502
+                        cout << "NMI" << endl;
+//#endif
+                        nmisequence = true;
+                    }
+                    else if (irq_req) {
+#ifdef DEBUG_6502
+                        cout << "IRQ" << endl;
+#endif
+                        irqsequence = true;
+                    }
+                }
 #ifdef DEBUG_6502
                 cout << "FETCH" << endl;
 #endif
                 opcode = space.read(PC);
+                //cout << "OPCODE " << hex << (WORD)opcode << endl;
                 dump_regs();
                 cycle++;
                 return;
@@ -243,6 +323,18 @@ public:
 #endif
     }
 
+    void nmi() {
+        nmi_req = true;
+        P.B = 0;
+    }
+
+    void irq() {
+        if (!P.I) {
+            irq_req = true;
+            P.B = 0;
+        }
+    }
+
 private:
     BYTE A = 0;
     BYTE X = 0;
@@ -261,6 +353,11 @@ private:
     WORD PTR2 = 0;
 
     bool resetsequence = false;
+    bool nmisequence = false;
+    bool irqsequence = false;
+    bool in_interrupt = false;
+    bool nmi_req = false;
+    bool irq_req = false;
 
     ADDR& space;
 
@@ -1221,46 +1318,120 @@ private:
             break;
         case INSTRS::PHP:
             switch (cycle) {
-            case 2:
+            case 1:
                 space.read(PC + 1);
                 cycle++;
                 break;
-            case 3:
+            case 2:
+                P.B = 1;
                 push(get_pflags());
                 next_instr();
             }
             break;
         case INSTRS::PLP:
             switch (cycle) {
-            case 2:
+            case 1:
                 space.read(PC + 1);
                 cycle++;
                 break;
-            case 3:
+            case 2:
                 set_pflags(pop());
                 next_instr();
             }
         case INSTRS::PHA:
             switch (cycle) {
-            case 2:
+            case 1:
                 space.read(PC + 1);
                 cycle++;
                 break;
-            case 3:
+            case 2:
                 push(A);
                 next_instr();
             }
             break;
         case INSTRS::PLA:
             switch (cycle) {
-            case 2:
+            case 1:
                 space.read(PC + 1);
                 cycle++;
                 break;
-            case 3:
+            case 2:
                 A = pop();
                 next_instr();
             }
+        case INSTRS::BRK:
+            P.B = 1;
+            irq_req = true;
+            next_instr();
+            break;
+        case INSTRS::RTI:
+            switch (cycle) {
+            case 1:
+                set_pflags(pop());
+                cycle++;
+                break;
+            case 2:
+                set_PC_lower(pop());
+                cycle++;
+                break;
+            case 3:
+                set_PC_upper(pop());
+                cycle++;
+                break;
+            case 4:
+                in_interrupt = false;
+                cycle++;
+                break;
+            case 5:
+                cycle = 0;
+                break;
+            }
+            break;
+        case INSTRS::JSR:
+            switch (cycle) {
+            case 1:
+                set_PTR_lower(space.read(++PC));
+                cycle++;
+                break;
+            case 2:
+                set_PTR_upper(space.read(++PC));
+                cycle++;
+                break;
+            case 3:
+                push((BYTE)(PC>>8));
+                cycle++;
+                break;
+            case 4:
+                push((BYTE)PC);
+                cycle++;
+                break;
+            case 5:
+                PC = PTR-1;
+                next_instr();
+                break;
+            }
+        case INSTRS::RTS:
+            switch (cycle) {
+            case 1:
+                space.read(++PC);
+                cycle++;
+                break;
+            case 2:
+                set_PC_lower(pop());
+                cycle++;
+                break;
+            case 3:
+                set_PC_upper(pop());
+                cycle++;
+                break;
+            case 4:
+                cycle++;
+                break;
+            case 5:
+                next_instr();
+                break;
+            }
+            break;
         }
     }
 };
@@ -1302,106 +1473,9 @@ int main()
     CPU cpu(space);
     cpu.reset();
     //while (true)
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
-        cpu.tick();
+    for (int i = 0; i < 100; i++) {
+        cpu.tick();
+        if (i == 50)
+            cpu.nmi();
+    }
 }
