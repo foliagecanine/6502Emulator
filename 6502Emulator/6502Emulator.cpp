@@ -227,6 +227,9 @@ public:
             else if (opcode_cc(opcode) == 0 && opcode_bbb(opcode) == 4) {
                 branch_00();
             }
+            else if (opcode_cc(opcode) == 2) {
+                decode_10();
+            }
             else if (opcode_cc(opcode) == 0) {
                 decode_00();
             }
@@ -913,6 +916,220 @@ private:
         cycle++;
     }
 
+    bool readaddr_10(OPCODE_10 aaa, BYTE bbb, bool out, BYTE outval) {
+        switch ((ADDRMODE_10)bbb) {
+        case ADDRMODE_10::IMM:
+            switch (cycle) {
+            case 1:
+                IMM = space.read(++PC);
+                return true;
+            }
+        case ADDRMODE_10::ACC:
+            switch (cycle) {
+            case 1:
+                space.read(PC + 1);
+                if (out) {
+                    A = IMM;
+                }
+                else {
+                    IMM = A;
+                }
+                return true;
+            }
+        case ADDRMODE_10::ZPI:
+            switch (cycle) {
+            case 1:
+                PTR = (WORD)space.read(++PC);
+                return false;
+            case 2:
+                IMM = space.read(PTR);
+                return (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX);
+            case 3:
+                return true;
+            case 4:
+                // Assume out
+                space.write(PTR, IMM);
+                return true;
+            }
+        case ADDRMODE_10::ZPX:
+            switch (cycle) {
+            case 1:
+                PTR = (WORD)space.read(++PC);
+                return false;
+            case 2:
+                if (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX)
+                    PTR = (WORD)((BYTE)PTR + Y);
+                else
+                    PTR = (WORD)((BYTE)PTR + X);
+                return false;
+            case 3:
+                IMM = space.read((WORD)PTR);
+                return (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX);
+            case 4:
+                return true;
+            case 5:
+                // Assume out
+                space.write(PTR, IMM);
+                return true;
+            }
+        case ADDRMODE_10::ABS:
+            switch (cycle) {
+            case 1:
+                set_PTR_lower(space.read(++PC));
+                return false;
+            case 2:
+                set_PTR_upper(space.read(++PC));
+                return false;
+            case 3:
+                IMM = space.read(PTR);
+                return (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX);
+            case 4:
+                return true;
+            case 5:
+                // Assume out
+                space.write(PTR, outval);
+                return true;
+            }
+        case ADDRMODE_10::ABX:
+            switch (cycle) {
+            case 1:
+                set_PTR_lower(space.read(++PC));
+                return false;
+            case 2:
+                set_PTR_upper(space.read(++PC));
+                return false;
+            case 3:
+                PTR += X;
+                return false;
+            case 4:
+                IMM = space.read(PTR);
+            case 5:
+                return true;
+            case 6:
+                // Assume out
+                space.write(PTR, outval);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool datready = false;
+    void decode_10() {
+        OPCODE_10 aaa = (OPCODE_10)opcode_aaa(opcode);
+        BYTE bbb = opcode_bbb(opcode);
+        bool done = false;
+        switch (aaa) {
+        case OPCODE_10::ASL:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    P.C = IMM >> 7;
+                    IMM <<= 1;
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
+        case OPCODE_10::LSR:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    P.C = IMM & 1;
+                    IMM >>= 1;
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
+        case OPCODE_10::ROL:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    BYTE t = P.C;
+                    P.C = IMM >> 7;
+                    IMM <<= 1;
+                    IMM |= t;
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
+        case OPCODE_10::ROR:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    BYTE t = P.C;
+                    P.C = IMM & 1;
+                    IMM >>= 1;
+                    IMM |= (t << 7);
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
+        case OPCODE_10::STX:
+            done = readaddr_10(aaa, bbb, true, X);
+            if (done) {
+                next_instr();
+            }
+            else {
+                cycle++;
+            }
+            break;
+        case OPCODE_10::LDX:
+            done = readaddr_10(aaa, bbb, false, 0);
+            if (done) {
+                X = IMM;
+                set_nflags(X);
+                next_instr();
+            }
+            else {
+                cycle++;
+            }
+        case OPCODE_10::INC:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    IMM++;
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
+        }
+    }
+
     void instruction_standalone() {
         switch ((INSTRS)opcode) {
         case INSTRS::NOP:
@@ -1051,7 +1268,7 @@ private:
 BYTE text_output(WORD address, BYTE value, bool write) {
     if (address == 0) {
         if (write) {
-            cout << (char)value;
+            std::cout << (char)value;
             return 0;
         }
         else {

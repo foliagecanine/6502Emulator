@@ -29,6 +29,14 @@ Opcodes done:
  - [x] PLP
  - [x] PHA
  - [x] PLA
+ - [x] ASL
+ - [x] LSR
+ - [x] ROL
+ - [x] ROR
+ - [x] STX
+ - [x] LDX
+ - [x] INC
+ - [x] DEC
  - [ ] Other opcodes
  
 Internal stuff done:
