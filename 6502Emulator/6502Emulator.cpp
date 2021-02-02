@@ -287,7 +287,7 @@ string ops[] = {
 
 class MEMSPACE {
 public:
-    MEMSPACE(WORD sta, WORD len) {
+    MEMSPACE(WORD sta, int len) {
         start = sta;
         length = len;
     }
@@ -305,12 +305,12 @@ public:
     }
 protected:
     WORD start;
-    WORD length;
+    int length;
 };
 
 class ROM : public MEMSPACE {
 public:
-    ROM(WORD sta, WORD len, BYTE data[])
+    ROM(WORD sta, int len, BYTE data[])
     : MEMSPACE(sta,len), rom(new BYTE[len]) {
         for (int i = 0; i < len; i++)
             rom[i] = data[i];
@@ -329,7 +329,7 @@ private:
 
 class RAM : public MEMSPACE {
 public:
-    RAM(WORD sta, WORD len)
+    RAM(WORD sta, int len)
     : MEMSPACE(sta,len), ram(new BYTE[len]) {
         for (int i = 0; i < len; i++)
             ram[i] = 0;
@@ -352,7 +352,7 @@ int default_fn(WORD address, BYTE value, bool write) {
 
 class IO : public MEMSPACE {
 public:
-    IO(WORD sta, WORD len, BYTE(*iofunc)(WORD address, BYTE value, bool write))
+    IO(WORD sta, int len, BYTE(*iofunc)(WORD address, BYTE value, bool write))
     : MEMSPACE(sta,len) {
         if (iofunc != nullptr) {
             iofunction = iofunc;
@@ -373,19 +373,19 @@ private:
 
 class ADDR {
 public:
-    RAM *create_memaddr(WORD start, WORD length) {
+    RAM *create_memaddr(WORD start, int length) {
         RAM* ram = new RAM(start, length);
         space.push_back(ram);
         return ram;
     }
 
-    ROM *create_romaddr(WORD start, WORD length, BYTE data[]) {
+    ROM *create_romaddr(WORD start, int length, BYTE data[]) {
         ROM* rom = new ROM(start, length, data);
         space.push_back(rom);
         return rom;
     }
 
-    IO *create_ioaddr(WORD start, WORD length, BYTE(*iofunc)(WORD address, BYTE value, bool write)) {
+    IO *create_ioaddr(WORD start, int length, BYTE(*iofunc)(WORD address, BYTE value, bool write)) {
         IO* io = new IO(start, length, iofunc);
         space.push_back(io);
         return io;
@@ -432,8 +432,8 @@ struct FLAGS {
     BYTE Z : 1;
     BYTE I : 1;
     BYTE D : 1;
-    BYTE U : 1;
     BYTE B : 1;
+    BYTE U : 1;
     BYTE V : 1;
     BYTE N : 1;
 };
@@ -446,6 +446,12 @@ public:
 
     void reset() {
         resetsequence = true;
+    }
+
+    void reset(WORD pc) {
+        resetsequence = true;
+        customstart = true;
+        customstart_pc = pc;
     }
 
     void tick() {
@@ -477,6 +483,8 @@ public:
                 BYTE IMM = space.read(0xFFFD);
                 set_PC_upper(IMM);
                 cycle = 0;
+                if (customstart)
+                    PC = customstart_pc;
                 resetsequence = false;
                 break;
             }
@@ -596,7 +604,7 @@ public:
     void dump_regs() {
 #ifdef DEBUG_6502
         BYTE t = (opcode << 4) | (opcode >> 4);
-        cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec  << ":" << ops[t] << endl;
+        cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " P:" << (P.N ? 'N' : 'n') << (P.V ? 'V' : 'v') << (P.B ? 'B' : 'b') << (P.D ? 'D' : 'd') << (P.I ? 'I' : 'i') << (P.Z ? 'Z' : 'z') << (P.C ? 'C' : 'c') << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec  << ":" << ops[t] << endl;
 #endif
     }
 
@@ -630,6 +638,8 @@ private:
     WORD PTR2 = 0;
 
     bool resetsequence = false;
+    bool customstart = false;
+    WORD customstart_pc = 0;
     bool nmisequence = false;
     bool irqsequence = false;
     bool in_interrupt = false;
@@ -1117,7 +1127,7 @@ private:
             switch (cycle) {
             case 1:
                 IMM = space.read(++PC);
-                true;
+                return true;
             }
         case ADDRMODE_00::ABS:
             switch (cycle) {
@@ -1609,6 +1619,18 @@ private:
             space.read(PC + 1);
             next_instr();
             break;
+        case INSTRS::TXS:
+            SP = X;
+            set_nflags(SP);
+            space.read(PC + 1);
+            next_instr();
+            break;
+        case INSTRS::TSX:
+            X = SP;
+            set_nflags(X);
+            space.read(PC + 1);
+            next_instr();
+            break;
         case INSTRS::PHP:
             switch (cycle) {
             case 1:
@@ -1749,27 +1771,29 @@ BYTE text_output(WORD address, BYTE value, bool write) {
 
 int main()
 {
-    auto romcontents = new BYTE[0x8000];
+    auto romcontents = new BYTE[65536];
     ifstream romfile;
     char* userprofile;
     errno_t err = _dupenv_s(&userprofile, nullptr, "USERPROFILE");
     if (err) return 2;
     romfile.open(string(userprofile) + string("\\Documents\\ROM.BIN"), ios::in|ios::binary|ios::ate);
-    if (!romfile.is_open() || romfile.tellg()!=0x8000) {
+    if (!romfile.is_open() || romfile.tellg()!=65536) {
         cerr << "Invalid file " << userprofile << "\\Documents\\ROM.BIN" << endl;
         return 1;
     }
     romfile.seekg(0, ios::beg);
-    romfile.read((char *)romcontents, 0x8000);
+    romfile.read((char *)romcontents, 65536);
     romfile.close();
 
     ADDR space;
-    ROM* rom = space.create_romaddr(0x8000, 0x8000, romcontents);
+    RAM* ram = space.create_memaddr(0x0000, 65536);
+    for (int i = 0; i < 65536; i++) {
+        ram->write(i, romcontents[i]);
+    }
     delete[] romcontents;
-    RAM* ram = space.create_memaddr(0x0000, 0x4000);
-    IO* io = space.create_ioaddr(0x6000, 1, &text_output);
+    //IO* io = space.create_ioaddr(0x6000, 1, &text_output);
     CPU cpu(space);
-    cpu.reset();
+    cpu.reset(0x400);
     while (true) {
         cpu.tick();
         Sleep(1);
