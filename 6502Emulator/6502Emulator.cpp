@@ -570,13 +570,13 @@ public:
                         irqsequence = true;
                     }
                 }
+                opcode = space.read(PC);
 #ifdef DEBUG_6502
                 cout << "FETCH" << endl;
-#endif
-                opcode = space.read(PC);
                 BYTE t = (opcode << 4) | (opcode >> 4);
                 cout << hex << PC << " " << (WORD)opcode << ":" << ops[t] << endl;
                 dump_regs();
+#endif
                 cycle++;
                 return;
             }
@@ -787,16 +787,20 @@ private:
     }
 
     void push(BYTE val) {
+#ifdef DEBUG_6502
         cout << "PUSH ";
+#endif
         space.write(0x100 + (WORD)SP, val);
         SP--;
     }
 
     BYTE pop() {
         SP++;
+#ifdef DEBUG_6502
         cout << "POP ";
-        BYTE t = space.read(0x100 + (WORD)SP);
         cout << hex << (WORD)t << endl;
+#endif
+        BYTE t = space.read(0x100 + (WORD)SP);
         return t;
     }
 
@@ -1375,9 +1379,11 @@ private:
             }
             break;
         }
-        cout << "BRANCH" << endl;
         int8_t t = (int8_t)space.read(++PC);
+#ifdef DEBUG_6502
+        cout << "BRANCH" << endl;        
         cout << "RELATIVE " << dec << static_cast<int>(t) << endl;
+#endif
         PTR = PC + t;
         if ((PTR & 0xFF00) == (PC & 0xFF00)) {
             PC = PTR;
@@ -1848,20 +1854,22 @@ BYTE text_output(WORD address, BYTE value, bool write) {
     return 0;
 }
 
+#define ROMSIZE 65536
+
 int main()
 {
-    auto romcontents = new BYTE[65536];
+    auto romcontents = new BYTE[ROMSIZE];
     ifstream romfile;
     char* userprofile;
     errno_t err = _dupenv_s(&userprofile, nullptr, "USERPROFILE");
     if (err) return 2;
     romfile.open(string(userprofile) + string("\\Documents\\ROM.BIN"), ios::in|ios::binary|ios::ate);
-    if (!romfile.is_open() || romfile.tellg()!=65536) {
+    if (!romfile.is_open() || romfile.tellg()!=ROMSIZE) {
         cerr << "Invalid file " << userprofile << "\\Documents\\ROM.BIN" << endl;
         return 1;
     }
     romfile.seekg(0, ios::beg);
-    romfile.read((char *)romcontents, 65536);
+    romfile.read((char *)romcontents, ROMSIZE);
     romfile.close();
 
     ADDR space;
@@ -1869,6 +1877,7 @@ int main()
     for (int i = 0; i < 65536; i++) {
         ram->write(i, romcontents[i]);
     }
+    //ROM* rom = space.create_romaddr(0x8000, 0x8000, romcontents);
 
     //BYTE t[] = {
     //    0x38, 0xa9, 0x00, 0xe9, 0x01, 0x4c, 0x05, 0x04
