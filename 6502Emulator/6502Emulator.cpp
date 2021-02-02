@@ -417,7 +417,7 @@ public:
         for (size_t i = 0; i < space.size(); i++) {
             if (space[i]->contains(address)) {
 #ifdef DEBUG_6502
-                cout << "WRITE " << address << ":" << hex << (WORD)value << endl;
+                cout << "WRITE " << hex << address << ":" << hex << (WORD)value << endl;
 #endif
                 space[i]->write(address, value);
             }
@@ -1363,7 +1363,8 @@ private:
                 set_PTR_upper(space.read(++PC));
                 return false;
             case 3:
-                IMM = space.read(PTR);
+                if (!out) 
+                    IMM = space.read(PTR);
                 return (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX);
             case 4:
                 return true;
@@ -1381,10 +1382,14 @@ private:
                 set_PTR_upper(space.read(++PC));
                 return false;
             case 3:
-                PTR += X;
+                if (aaa == OPCODE_10::LDX)
+                    PTR += Y;
+                else
+                    PTR += X;
                 return false;
             case 4:
                 IMM = space.read(PTR);
+                return (aaa == OPCODE_10::LDX);
             case 5:
                 return true;
             case 6:
@@ -1477,6 +1482,8 @@ private:
         case OPCODE_10::STX:
             done = readaddr_10(aaa, bbb, true, X);
             if (done) {
+                cycle += 2;
+                done = readaddr_10(aaa, bbb, true, X);
                 next_instr();
             }
             else {
