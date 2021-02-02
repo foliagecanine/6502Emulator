@@ -877,10 +877,10 @@ private:
         else {
             result = sub ? (testA - testB) : (testA + testB);
             if (carry) {
-                if (P.C == 0 && !sub) {
+                if (P.C == 1 && !sub) {
                     result++;
                 }
-                else if (P.C == 1 && sub) {
+                else if (P.C == 0 && sub) {
                     result--;
                 }
             }
@@ -1068,6 +1068,7 @@ private:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = set_aflags(A, IMM, false, true, true);
+                set_nflags(A);
                 next_instr();
             }
             else {
@@ -1078,6 +1079,7 @@ private:
             done = readaddr_01(bbb, false, 0);
             if (done) {
                 A = set_aflags(A, IMM, true, true, true);
+                set_nflags(A);
                 next_instr();
             }
             else {
@@ -1867,6 +1869,14 @@ int main()
     for (int i = 0; i < 65536; i++) {
         ram->write(i, romcontents[i]);
     }
+
+    //BYTE t[] = {
+    //    0x38, 0xa9, 0x00, 0xe9, 0x01, 0x4c, 0x05, 0x04
+    //};
+
+    //for (int i = 0; i < sizeof(t); i++)
+    //    ram->write(i + 0x400, t[i]);
+
     delete[] romcontents;
     //IO* io = space.create_ioaddr(0x6000, 1, &text_output);
     CPU cpu(space);
