@@ -6,7 +6,7 @@
 #include <Windows.h>
 using namespace std;
 
-//#define DEBUG_6502
+#define DEBUG_6502
 
 typedef uint8_t BYTE;
 typedef uint16_t WORD;
@@ -567,7 +567,7 @@ public:
 #endif
                 opcode = space.read(PC);
                 BYTE t = (opcode << 4) | (opcode >> 4);
-                cout << hex << PC << " " << (WORD)opcode << "/" << (WORD)t << ":" << ops[t] << endl;
+                cout << hex << PC << " " << (WORD)opcode << ":" << ops[t] << endl;
                 dump_regs();
                 cycle++;
                 return;
@@ -595,7 +595,8 @@ public:
 
     void dump_regs() {
 #ifdef DEBUG_6502
-        cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec << endl;
+        BYTE t = (opcode << 4) | (opcode >> 4);
+        cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec  << ":" << ops[t] << endl;
 #endif
     }
 
@@ -774,13 +775,17 @@ private:
     }
 
     void push(BYTE val) {
+        cout << "PUSH ";
         space.write(0x100 + (WORD)SP, val);
         SP--;
     }
 
     BYTE pop() {
         SP++;
-        return space.read(0x100 + (WORD)SP);
+        cout << "POP ";
+        BYTE t = space.read(0x100 + (WORD)SP);
+        cout << hex << (WORD)t << endl;
+        return t;
     }
 
     BYTE get_pflags() {
@@ -859,15 +864,18 @@ private:
         }
         else {
             result = sub ? (testA - testB) : (testA + testB);
-            if (P.C == 1) {
-                result += sub ? -1 : 1;
+            if (P.C == 0 && !sub) {
+                result++;
+            }
+            else if (P.C == 1 && sub) {
+                result--;
             }
             if (v) {
                 if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
                     P.V = 1;
                 }
             }
-            if ((sub && (testB > testA) || testB + testA < testA)) {
+            if ((sub && (testB <= testA)) || testB + testA < testA) {
                 P.C = 1;
             }
         }
@@ -1278,6 +1286,7 @@ private:
             }
             break;
         }
+        cout << "BRANCH" << endl;
         signed char t = (signed char)space.read(++PC);
         PTR = PC + t;
         if ((PTR & 0xFF00) == (PC & 0xFF00)) {
@@ -1603,6 +1612,7 @@ private:
                 P.B = 1;
                 push(get_pflags());
                 next_instr();
+                break;
             }
             break;
         case INSTRS::PLP:
@@ -1614,7 +1624,9 @@ private:
             case 2:
                 set_pflags(pop());
                 next_instr();
+                break;
             }
+            break;
         case INSTRS::PHA:
             switch (cycle) {
             case 1:
@@ -1636,6 +1648,7 @@ private:
                 A = pop();
                 next_instr();
             }
+            break;
         case INSTRS::BRK:
             P.B = 1;
             irq_req = true;
