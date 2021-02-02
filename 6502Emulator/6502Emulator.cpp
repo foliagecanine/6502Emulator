@@ -441,7 +441,7 @@ struct FLAGS {
 class CPU {
 public:
     CPU(ADDR& addrspace) : space(addrspace) {
-
+        
     }
 
     void reset() {
@@ -493,7 +493,6 @@ public:
             switch (cycle) {
             case 1:
                 nmi_req = false;
-                in_interrupt = true;
                 space.read(++PC);
                 PC--;
                 cycle++;
@@ -517,6 +516,7 @@ public:
             case 6:
                 set_PC_upper(space.read(0xFFFB));
                 nmisequence = false;
+                P.I = 1;
                 cycle = 0;
                 break;
             }
@@ -525,7 +525,6 @@ public:
             switch (cycle) {
             case 1:
                 irq_req = false;
-                in_interrupt = true;
                 space.read(++PC);
                 if (!P.B)
                     PC--;
@@ -550,6 +549,7 @@ public:
             case 6:
                 set_PC_upper(space.read(0xFFFF));
                 irqsequence = false;
+                P.I = 1;
                 cycle = 0;
                 break;
             }
@@ -580,9 +580,11 @@ public:
                 cycle++;
                 return;
             }
+            BYTE t = (opcode << 4) | (opcode >> 4);
+
             // Check for standalone instructions
             // These are instructions the last 4 bits are 0b1000, bits 7 and 4-0 are 0, or its first 4 bits are >= 8 and its last four bits are A
-            if ((opcode_bbbcc(opcode) | 0b10000) == 0b11000 || ((opcode&0b10011111)==0) || (((opcode&0xF0)>0x80) && ((opcode&0x0F)==0x0A))) {
+            if ((opcode_bbbcc(opcode) | 0b10000) == 0b11000 || ((opcode&0b10011111)==0) || (((opcode&0xF0)>=0x80) && ((opcode&0x0F)==0x0A))) {
                 instruction_standalone();
             }
             else if (opcode_cc(opcode) == 1) {
@@ -802,7 +804,7 @@ private:
         BYTE r = 0;
         r = (r | P.N) << 1;
         r = (r | P.V) << 1;
-        r = (r | P.U) << 1;
+        r = (r | 1) << 1; // Always return 1 for P.U
         r = (r | P.B) << 1;
         r = (r | P.D) << 1;
         r = (r | P.I) << 1;
@@ -867,27 +869,35 @@ private:
     }
 
     // Set arithmetic flags (C, V) {
-    BYTE set_aflags(BYTE testA, BYTE testB, bool sub, bool v) {
+    BYTE set_aflags(BYTE testA, BYTE testB, bool sub, bool v, bool carry) {
         BYTE result;
-        if (P.D) {
+        if (P.D && carry) {
             result = sub ? BCD_sub(testA, testB) : BCD_add(testA, testB);
         }
         else {
             result = sub ? (testA - testB) : (testA + testB);
-            if (P.C == 0 && !sub) {
-                result++;
-            }
-            else if (P.C == 1 && sub) {
-                result--;
+            if (carry) {
+                if (P.C == 0 && !sub) {
+                    result++;
+                }
+                else if (P.C == 1 && sub) {
+                    result--;
+                }
             }
             if (v) {
                 if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
                     P.V = 1;
                 }
+                else {
+                    P.V = 0;
+                }
             }
-            if ((sub && (testB <= testA)) || testB + testA < testA) {
-                P.C = 1;
-            }
+        }
+        if ((sub && (testB <= testA)) || (!sub && testB + testA < testA)) {
+            P.C = 1;
+        }
+        else {
+            P.C = 0;
         }
         return result;
     }
@@ -1057,7 +1067,7 @@ private:
         case OPCODE_01::ADC:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                A = set_aflags(A, IMM, false, true);
+                A = set_aflags(A, IMM, false, true, true);
                 next_instr();
             }
             else {
@@ -1067,7 +1077,7 @@ private:
         case OPCODE_01::SBC:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                A = set_aflags(A, IMM, true, true);
+                A = set_aflags(A, IMM, true, true, true);
                 next_instr();
             }
             else {
@@ -1110,7 +1120,13 @@ private:
         case OPCODE_01::CMP:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-                IMM = set_aflags(A, IMM, true, false);
+#ifdef DEBUG_6502:
+                cout << "CMP " << (WORD)A << " TO " << (WORD)IMM << endl;
+#endif
+                IMM = set_aflags(A, IMM, true, false, false);
+#ifdef DEBUG_6502:
+                cout << " = " << (WORD)IMM << endl;
+#endif
                 set_nflags(IMM);
                 next_instr();
             }
@@ -1121,7 +1137,7 @@ private:
         }
     }
 
-    bool readaddr_00(BYTE bbb) {
+    bool readaddr_00(BYTE bbb, bool out, BYTE outval) {
         switch ((ADDRMODE_00)bbb) {
         case ADDRMODE_00::IMM:
             switch (cycle) {
@@ -1138,6 +1154,55 @@ private:
                 set_PTR_upper(space.read(++PC));
                 return false;
             case 3:
+                if (out)
+                    space.write(PTR, outval);
+                else
+                    IMM = space.read(PTR);
+                return true;
+            }
+        case ADDRMODE_00::ZPI:
+            switch (cycle) {
+            case 1:
+                IMM = space.read(++PC);
+                return false;
+            case 2:
+                if (out)
+                    space.write((WORD)IMM, outval);
+                else
+                    IMM = space.read((WORD)IMM);
+                return true;
+            }
+        case ADDRMODE_00::ZPX:
+            switch (cycle) {
+            case 1:
+                IMM = space.read(++PC);
+                return false;
+            case 2:
+                IMM += X;
+                return false;
+            case 3:
+                if (out)
+                    space.write((WORD)IMM, outval);
+                else
+                    IMM = space.read((WORD)IMM);
+                return true;
+            }
+        case ADDRMODE_00::ABX:
+            switch (cycle) {
+            case 1:
+                set_PTR_lower(space.read(++PC));
+                return false;
+            case 2:
+                set_PTR_upper(space.read(++PC));
+                return false;
+            case 3:
+                if ((PTR & 0xFF) == 0xFF || out)
+                    return false;
+            case 4:
+                if (out)
+                    space.write(PTR + X, outval);
+                else
+                    IMM = space.read(PTR + X);
                 return true;
             }
         }
@@ -1150,7 +1215,7 @@ private:
         bool done = false;
         switch ((OPCODE_00)aaa) {
         case OPCODE_00::JMP:
-            done = readaddr_00(bbb);
+            done = readaddr_00(bbb, false, 0);
             if (cycle == 2) {
                 PC = PTR - 1;
                 next_instr();
@@ -1160,7 +1225,7 @@ private:
             }
             break;
         case OPCODE_00::JAB:
-            done = readaddr_00(bbb);
+            done = readaddr_00(bbb, false, 0);
             if (done) {
                 switch (cycle) {
                 case 3:
@@ -1177,7 +1242,7 @@ private:
             }
             break;
         case OPCODE_00::BIT:
-            done = readaddr_00(bbb);
+            done = readaddr_00(bbb, false, 0);
             if (done) {
                 IMM = A & IMM;
                 set_nflags(IMM);
@@ -1188,9 +1253,15 @@ private:
             }
             break;
         case OPCODE_00::CPX:
-            done = readaddr_00(bbb);
+            done = readaddr_00(bbb, false, 0);
             if (done) {
-                IMM = set_aflags(X, IMM, true, false);
+#ifdef DEBUG_6502:
+                cout << "CPX " << (WORD)X << " TO " << (WORD)IMM << endl;
+#endif
+                IMM = set_aflags(X, IMM, true, false, false);
+#ifdef DEBUG_6502:
+                cout << " = " << (WORD)IMM << endl;
+#endif
                 set_nflags(IMM);
                 next_instr();
             }
@@ -1199,9 +1270,15 @@ private:
             }
             break;
         case OPCODE_00::CPY:
-            done = readaddr_00(bbb);
+            done = readaddr_00(bbb, false, 0);
             if (done) {
-                IMM = set_aflags(Y, IMM, true, false);
+#ifdef DEBUG_6502:
+                cout << "CPY " << (WORD)Y << " TO " << (WORD)IMM << endl;
+#endif
+                IMM = set_aflags(Y, IMM, true, false, false);
+#ifdef DEBUG_6502:
+                cout << " = " << (WORD)IMM << endl;
+#endif
                 set_nflags(IMM);
                 next_instr();
             }
@@ -1210,7 +1287,7 @@ private:
             }
             break;
         case OPCODE_00::LDY:
-            done = readaddr_01(bbb, false, 0);
+            done = readaddr_00(bbb, false, 0);
             if (done) {
                 Y = IMM;
                 set_nflags(IMM);
@@ -1221,7 +1298,7 @@ private:
             }
             break;
         case OPCODE_00::STY:
-            done = readaddr_01(bbb, true, Y);
+            done = readaddr_00(bbb, true, Y);
             if (done) {
                 next_instr();
             }
@@ -1240,42 +1317,42 @@ private:
         }
         switch ((BRANCH_00)aaa) {
         case BRANCH_00::BCC:
-            if (!P.C) {
-                space.read(++PC);
-                next_instr();
-                return;
-            }
-            break;
-        case BRANCH_00::BCS:
             if (P.C) {
                 space.read(++PC);
                 next_instr();
                 return;
             }
             break;
-        case BRANCH_00::BVC:
-            if (!P.V) {
+        case BRANCH_00::BCS:
+            if (!P.C) {
                 space.read(++PC);
                 next_instr();
                 return;
             }
             break;
-        case BRANCH_00::BVS:
+        case BRANCH_00::BVC:
             if (P.V) {
                 space.read(++PC);
                 next_instr();
                 return;
             }
             break;
+        case BRANCH_00::BVS:
+            if (!P.V) {
+                space.read(++PC);
+                next_instr();
+                return;
+            }
+            break;
         case BRANCH_00::BPL:
-            if (!P.N) {
+            if (P.N) {
                 space.read(++PC);
                 next_instr();
                 return;
             }
             break;
         case BRANCH_00::BMI:
-            if (P.N) {
+            if (!P.N) {
                 space.read(++PC);
                 next_instr();
                 return;
@@ -1297,7 +1374,8 @@ private:
             break;
         }
         cout << "BRANCH" << endl;
-        signed char t = (signed char)space.read(++PC);
+        int8_t t = (int8_t)space.read(++PC);
+        cout << "RELATIVE " << dec << static_cast<int>(t) << endl;
         PTR = PC + t;
         if ((PTR & 0xFF00) == (PC & 0xFF00)) {
             PC = PTR;
@@ -1340,7 +1418,7 @@ private:
                 return true;
             case 4:
                 // Assume out
-                space.write(PTR, IMM);
+                space.write(PTR, outval);
                 return true;
             }
         case ADDRMODE_10::ZPX:
@@ -1361,7 +1439,7 @@ private:
                 return true;
             case 5:
                 // Assume out
-                space.write(PTR, IMM);
+                space.write(PTR, outval);
                 return true;
             }
         case ADDRMODE_10::ABS:
@@ -1557,7 +1635,7 @@ private:
             next_instr();
             break;
         case INSTRS::CLV:
-            P.V = 1;
+            P.V = 0;
             space.read(PC + 1);
             next_instr();
             break;
@@ -1621,7 +1699,6 @@ private:
             break;
         case INSTRS::TXS:
             SP = X;
-            set_nflags(SP);
             space.read(PC + 1);
             next_instr();
             break;
@@ -1675,6 +1752,7 @@ private:
                 break;
             case 2:
                 A = pop();
+                set_nflags(A);
                 next_instr();
             }
             break;
@@ -1698,7 +1776,6 @@ private:
                 cycle++;
                 break;
             case 4:
-                in_interrupt = false;
                 cycle++;
                 break;
             case 5:
