@@ -796,11 +796,11 @@ private:
 
     BYTE pop() {
         SP++;
+        BYTE t = space.read(0x100 + (WORD)SP);
 #ifdef DEBUG_6502
         cout << "POP ";
         cout << hex << (WORD)t << endl;
 #endif
-        BYTE t = space.read(0x100 + (WORD)SP);
         return t;
     }
 
