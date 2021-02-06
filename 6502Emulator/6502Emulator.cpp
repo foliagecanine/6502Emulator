@@ -6,7 +6,7 @@
 #include <Windows.h>
 using namespace std;
 
-#define DEBUG_6502
+//#define DEBUG_6502
 
 typedef uint8_t BYTE;
 typedef uint16_t WORD;
@@ -261,7 +261,7 @@ string ops[] = {
     "STX a",
     "ERR",
     "LDX a",
-    "LDX a,X",
+    "LDX a,Y",
     "DEC a",
     "DEC a,X",
     "INC a",
@@ -438,6 +438,11 @@ struct FLAGS {
     BYTE N : 1;
 };
 
+BYTE lastA;
+BYTE lastB;
+BYTE lastC;
+BYTE lastres;
+
 class CPU {
 public:
     CPU(ADDR& addrspace) : space(addrspace) {
@@ -605,9 +610,21 @@ public:
 
     void dump_regs() {
 #ifdef DEBUG_6502
-        BYTE t = (opcode << 4) | (opcode >> 4);
-        cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " P:" << (P.N ? 'N' : 'n') << (P.V ? 'V' : 'v') << (P.B ? 'B' : 'b') << (P.D ? 'D' : 'd') << (P.I ? 'I' : 'i') << (P.Z ? 'Z' : 'z') << (P.C ? 'C' : 'c') << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec  << ":" << ops[t] << endl;
+            BYTE t = (opcode << 4) | (opcode >> 4);
+            cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " P:" << (P.N ? 'N' : 'n') << (P.V ? 'V' : 'v') << (P.B ? 'B' : 'b') << (P.D ? 'D' : 'd') << (P.I ? 'I' : 'i') << (P.Z ? 'Z' : 'z') << (P.C ? 'C' : 'c') << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec << ":" << ops[t] << endl;
 #endif
+    }
+
+    WORD get_pc() {
+        return PC;
+    }
+
+    BYTE get_op() {
+        return opcode;
+    }
+
+    BYTE get_flags() {
+        return get_pflags();
     }
 
     void nmi() {
@@ -846,11 +863,21 @@ private:
         BYTE convA = (a & 0xF) + ((a >> 4) * 10);
         BYTE convB = (b & 0xF) + ((b >> 4) * 10);
 
-        BYTE result = convA + convB;
-        if (result > 100) {
+        BYTE result = convA + convB + P.C;
+        lastA = convA;
+        lastB = convB;
+        lastC = P.C;
+        lastres = result;
+        if (result >= 100) {
             P.C = 1;
             result -= 100;
         }
+        else {
+            P.C = 0;
+        }
+
+        P.V = 0;
+        P.N = 0;
 
         BYTE ret = result%10;
         ret |= (result / 10) << 4;
@@ -861,11 +888,21 @@ private:
         BYTE convA = (a & 0xF) + ((a >> 4) * 10);
         BYTE convB = (b & 0xF) + ((b >> 4) * 10);
 
-        BYTE result = convA - convB;
-        if (result > 100) {
-            P.C = 1;
+        BYTE result = (convA - convB) - !P.C;
+        lastA = convA;
+        lastB = convB;
+        lastC = P.C;
+        lastres = result;
+        if (result >= 100) {
+            P.C = 0;
             result += 100;
         }
+        else {
+            P.C = 1;
+        }
+
+        P.V = 0;
+        P.N = 0;
 
         BYTE ret = result % 10;
         ret |= (result / 10) << 4;
@@ -889,19 +926,15 @@ private:
                 }
             }
             if (v) {
-                if (!sub && !((testA ^ testB) & 0x80) && ((testA ^ result) & 0x80)) {
-                    P.V = 1;
-                }
-                else {
-                    P.V = 0;
-                }
+                BYTE ntestB = sub ? testB ^ 0x80 : testB;
+                P.V = !!((testA ^ result) & (ntestB ^ result) & 0x80);
             }
-        }
-        if ((sub && (testB <= testA)) || (!sub && testB + testA < testA)) {
-            P.C = 1;
-        }
-        else {
-            P.C = 0;
+            if ((sub && (testB + (carry ? !P.C : 0) <= testA)) || (!sub && (WORD)testB + (WORD)testA + (WORD)(carry && P.C) > 255)) {
+                P.C = 1;
+            }
+            else {
+                P.C = 0;
+            }
         }
         return result;
     }
@@ -1003,7 +1036,7 @@ private:
                 IMM = space.read(++PC);
                 return false;
             case 2:
-                PTR += X;
+                IMM += X;
                 return false;
             case 3:
                 set_PTR_lower(space.read(IMM++));
@@ -1237,10 +1270,13 @@ private:
                 case 3:
                     PTR2 = PTR;
                     set_PTR_lower(space.read(PTR2++));
+                    cycle++;
+                    break;
                 case 4:
                     set_PTR_upper(space.read(PTR2));
                     PC = PTR - 1;
                     next_instr();
+                    break;
                 }
             }
             else {
@@ -1250,8 +1286,10 @@ private:
         case OPCODE_00::BIT:
             done = readaddr_00(bbb, false, 0);
             if (done) {
+                P.N = (IMM >> 7) & 1;
+                P.V = (IMM >> 6) & 1;
                 IMM = A & IMM;
-                set_nflags(IMM);
+                P.Z = (IMM == 0);
                 next_instr();
             }
             else {
@@ -1317,7 +1355,7 @@ private:
 
     void branch_00() {
         BYTE aaa = opcode_aaa(opcode);
-        if (cycle == 3) {
+        if (cycle == 2) {
             next_instr();
             return;
         }
@@ -1386,6 +1424,9 @@ private:
 #endif
         PTR = PC + t;
         if ((PTR & 0xFF00) == (PC & 0xFF00)) {
+#ifdef DEBUG_6502
+            cout << "SAMEPAGE" << endl;
+#endif
             PC = PTR;
             next_instr();
             return;
@@ -1405,6 +1446,7 @@ private:
         case ADDRMODE_10::ACC:
             switch (cycle) {
             case 1:
+            case 2:
                 space.read(PC + 1);
                 if (out) {
                     A = IMM;
@@ -1432,16 +1474,17 @@ private:
         case ADDRMODE_10::ZPX:
             switch (cycle) {
             case 1:
-                PTR = (WORD)space.read(++PC);
+                IMM = (WORD)space.read(++PC);
                 return false;
             case 2:
                 if (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX)
-                    PTR = (WORD)((BYTE)PTR + Y);
+                    IMM += Y;
                 else
-                    PTR = (WORD)((BYTE)PTR + X);
+                    IMM += X;
                 return false;
             case 3:
-                IMM = space.read((WORD)PTR);
+                PTR = IMM;
+                IMM = space.read((WORD)IMM);
                 return (aaa == OPCODE_10::STX || aaa == OPCODE_10::LDX);
             case 4:
                 return true;
@@ -1597,6 +1640,22 @@ private:
                 cycle++;
             }
             break;
+        case OPCODE_10::DEC:
+            if (!datready) {
+                done = readaddr_10(aaa, bbb, false, 0);
+                if (done) {
+                    IMM--;
+                    datready = true;
+                }
+                cycle++;
+            }
+            else {
+                readaddr_10(aaa, bbb, true, IMM);
+                set_nflags(IMM);
+                datready = false;
+                next_instr();
+            }
+            break;
         case OPCODE_10::INC:
             if (!datready) {
                 done = readaddr_10(aaa, bbb, false, 0);
@@ -1750,6 +1809,7 @@ private:
             case 2:
                 push(A);
                 next_instr();
+                break;
             }
             break;
         case INSTRS::PLA:
@@ -1762,6 +1822,7 @@ private:
                 A = pop();
                 set_nflags(A);
                 next_instr();
+                break;
             }
             break;
         case INSTRS::BRK:
@@ -1854,6 +1915,20 @@ BYTE text_output(WORD address, BYTE value, bool write) {
     return 0;
 }
 
+int a(CPU& cpu, RAM *ram) {
+    if (cpu.get_pc() == 0x3222)
+        cout << "NEW: " << hex << (WORD)ram->read(0xf) << endl;
+    if (cpu.get_pc() == 0x32c6)
+        cout << "NEW: " << hex << (WORD)ram->read(0x10) << endl;
+    if (cpu.get_pc() == 0x332c)
+        cout << "SUCCESS!!!!!!" << endl;
+    if (cpu.get_pc() == 0x3224) {
+        cout << "GOOD";
+        system("pause");
+    }
+    return 0;
+}
+
 #define ROMSIZE 65536
 
 int main()
@@ -1890,8 +1965,20 @@ int main()
     //IO* io = space.create_ioaddr(0x6000, 1, &text_output);
     CPU cpu(space);
     cpu.reset(0x400);
+    WORD oldpc = 9754;
+    WORD tries = 0;
     while (true) {
         cpu.tick();
-        Sleep(1);
+        if (cpu.get_pc() == oldpc) {
+            if (tries > 6) {
+                system("pause");
+            }
+            tries++;
+        }
+        else
+            tries = 0;
+        oldpc = cpu.get_pc();
+        BYTE f = ram->read(0xf);
+        a(cpu, ram);
     }
 }
