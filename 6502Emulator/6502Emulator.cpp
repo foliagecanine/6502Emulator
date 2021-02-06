@@ -438,11 +438,6 @@ struct FLAGS {
     BYTE N : 1;
 };
 
-BYTE lastA;
-BYTE lastB;
-BYTE lastC;
-BYTE lastres;
-
 class CPU {
 public:
     CPU(ADDR& addrspace) : space(addrspace) {
@@ -613,18 +608,6 @@ public:
             BYTE t = (opcode << 4) | (opcode >> 4);
             cout << hex << "A:" << (WORD)A << " X:" << (WORD)X << " Y:" << (WORD)Y << " PC:" << PC << " P:" << (P.N ? 'N' : 'n') << (P.V ? 'V' : 'v') << (P.B ? 'B' : 'b') << (P.D ? 'D' : 'd') << (P.I ? 'I' : 'i') << (P.Z ? 'Z' : 'z') << (P.C ? 'C' : 'c') << " SP:" << (WORD)SP << " CY:" << (WORD)cycle << " OP:" << (WORD)opcode << dec << ":" << ops[t] << endl;
 #endif
-    }
-
-    WORD get_pc() {
-        return PC;
-    }
-
-    BYTE get_op() {
-        return opcode;
-    }
-
-    BYTE get_flags() {
-        return get_pflags();
     }
 
     void nmi() {
@@ -864,10 +847,6 @@ private:
         BYTE convB = (b & 0xF) + ((b >> 4) * 10);
 
         BYTE result = convA + convB + P.C;
-        lastA = convA;
-        lastB = convB;
-        lastC = P.C;
-        lastres = result;
         if (result >= 100) {
             P.C = 1;
             result -= 100;
@@ -889,10 +868,6 @@ private:
         BYTE convB = (b & 0xF) + ((b >> 4) * 10);
 
         BYTE result = (convA - convB) - !P.C;
-        lastA = convA;
-        lastB = convB;
-        lastC = P.C;
-        lastres = result;
         if (result >= 100) {
             P.C = 0;
             result += 100;
@@ -1915,70 +1890,50 @@ BYTE text_output(WORD address, BYTE value, bool write) {
     return 0;
 }
 
-int a(CPU& cpu, RAM *ram) {
-    if (cpu.get_pc() == 0x3222)
-        cout << "NEW: " << hex << (WORD)ram->read(0xf) << endl;
-    if (cpu.get_pc() == 0x32c6)
-        cout << "NEW: " << hex << (WORD)ram->read(0x10) << endl;
-    if (cpu.get_pc() == 0x332c)
-        cout << "SUCCESS!!!!!!" << endl;
-    if (cpu.get_pc() == 0x3224) {
-        cout << "GOOD";
-        system("pause");
-    }
-    return 0;
-}
+#define ROMSIZE 0x8000
 
-#define ROMSIZE 65536
-
-int main()
+int main(int argc, char** argv)
 {
+    if (argc < 2) {
+        cout << "Please specify ROM file." << endl;
+        cout << "Use --help for help." << endl;
+        cerr << "Failed to open file: No file specified" << endl;
+        return 1;
+    }
+
+    if (string(argv[1]) == "-h") {
+        cout << "6502Emulator Help:" << endl;
+        cout << "Usage: " << argv[0] << " ROMFILE" << endl;
+        cout << endl;
+        cout << "ROMFILE: Binary file of size 0x" << hex << ROMSIZE << "." << endl;
+        cout << "  Probably should contain 6502 code, but that's up to you." << endl;
+        return 0;
+    }
+
     auto romcontents = new BYTE[ROMSIZE];
     ifstream romfile;
-    char* userprofile;
-    errno_t err = _dupenv_s(&userprofile, nullptr, "USERPROFILE");
-    if (err) return 2;
-    romfile.open(string(userprofile) + string("\\Documents\\ROM.BIN"), ios::in|ios::binary|ios::ate);
-    if (!romfile.is_open() || romfile.tellg()!=ROMSIZE) {
-        cerr << "Invalid file " << userprofile << "\\Documents\\ROM.BIN" << endl;
+    romfile.open(argv[1], ios::in|ios::binary|ios::ate);
+    if (!romfile.is_open()) {
+        cerr << "Failed to open file: Invalid file: " << argv[1] << endl;
         return 1;
+    }
+    if (romfile.tellg() != ROMSIZE) {
+        cout << "File is wrong size. It must be 0x" << hex << ROMSIZE << " bytes." << endl;
+        cerr << "Failed to open file: Invalid filesize: 0x" << hex << romfile.tellg() << " bytes" << endl;
     }
     romfile.seekg(0, ios::beg);
     romfile.read((char *)romcontents, ROMSIZE);
     romfile.close();
 
     ADDR space;
-    RAM* ram = space.create_memaddr(0x0000, 65536);
-    for (int i = 0; i < 65536; i++) {
-        ram->write(i, romcontents[i]);
-    }
-    //ROM* rom = space.create_romaddr(0x8000, 0x8000, romcontents);
-
-    //BYTE t[] = {
-    //    0x38, 0xa9, 0x00, 0xe9, 0x01, 0x4c, 0x05, 0x04
-    //};
-
-    //for (int i = 0; i < sizeof(t); i++)
-    //    ram->write(i + 0x400, t[i]);
+    RAM* ram = space.create_memaddr(0x0000, 0x4000);
+    ROM* rom = space.create_romaddr(0x10000-ROMSIZE, ROMSIZE, romcontents);
 
     delete[] romcontents;
-    //IO* io = space.create_ioaddr(0x6000, 1, &text_output);
+    IO* io = space.create_ioaddr(0x6000, 1, &text_output);
     CPU cpu(space);
-    cpu.reset(0x400);
-    WORD oldpc = 9754;
-    WORD tries = 0;
+    cpu.reset();
     while (true) {
         cpu.tick();
-        if (cpu.get_pc() == oldpc) {
-            if (tries > 6) {
-                system("pause");
-            }
-            tries++;
-        }
-        else
-            tries = 0;
-        oldpc = cpu.get_pc();
-        BYTE f = ram->read(0xf);
-        a(cpu, ram);
     }
 }
