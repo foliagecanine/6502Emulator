@@ -346,16 +346,17 @@ private:
     unique_ptr<BYTE[]> ram;
 };
 
-int default_fn(WORD address, BYTE value, bool write) {
+BYTE default_fn(WORD address, BYTE value, bool write) {
     return 0;
 }
 
 class IO : public MEMSPACE {
 public:
     IO(WORD sta, int len, BYTE(*iofunc)(WORD address, BYTE value, bool write))
-    : MEMSPACE(sta,len) {
-        if (iofunc != nullptr) {
-            iofunction = iofunc;
+    : MEMSPACE(sta,len), iofunction(iofunc) {
+        if (iofunction == nullptr) {
+            cerr << "IO has no function!" << endl;
+            iofunction = &default_fn;
         }
     }
 
@@ -1134,11 +1135,11 @@ private:
         case OPCODE_01::CMP:
             done = readaddr_01(bbb, false, 0);
             if (done) {
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << "CMP " << (WORD)A << " TO " << (WORD)IMM << endl;
 #endif
                 IMM = set_aflags(A, IMM, true, false, false);
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << " = " << (WORD)IMM << endl;
 #endif
                 set_nflags(IMM);
@@ -1274,7 +1275,7 @@ private:
         case OPCODE_00::CPX:
             done = readaddr_00(bbb, false, 0);
             if (done) {
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << "CPX " << (WORD)X << " TO " << (WORD)IMM << endl;
 #endif
                 IMM = set_aflags(X, IMM, true, false, false);
@@ -1291,11 +1292,11 @@ private:
         case OPCODE_00::CPY:
             done = readaddr_00(bbb, false, 0);
             if (done) {
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << "CPY " << (WORD)Y << " TO " << (WORD)IMM << endl;
 #endif
                 IMM = set_aflags(Y, IMM, true, false, false);
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << " = " << (WORD)IMM << endl;
 #endif
                 set_nflags(IMM);
