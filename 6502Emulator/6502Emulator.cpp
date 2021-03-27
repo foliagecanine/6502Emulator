@@ -1279,7 +1279,7 @@ private:
                 cout << "CPX " << (WORD)X << " TO " << (WORD)IMM << endl;
 #endif
                 IMM = set_aflags(X, IMM, true, false, false);
-#ifdef DEBUG_6502:
+#ifdef DEBUG_6502
                 cout << " = " << (WORD)IMM << endl;
 #endif
                 set_nflags(IMM);
@@ -1902,11 +1902,11 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (string(argv[1]) == "-h") {
+    if (string(argv[1]) == "-h" || string(argv[1]) == "--help") {
         cout << "6502Emulator Help:" << endl;
         cout << "Usage: " << argv[0] << " ROMFILE" << endl;
         cout << endl;
-        cout << "ROMFILE: Binary file of size 0x" << hex << ROMSIZE << "." << endl;
+        cout << "ROMFILE: Binary file of size " << dec << ROMSIZE << "." << endl;
         cout << "  Probably should contain 6502 code, but that's up to you." << endl;
         return 0;
     }
