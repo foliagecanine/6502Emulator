@@ -1921,6 +1921,7 @@ int main(int argc, char** argv)
     if (romfile.tellg() != ROMSIZE) {
         cout << "File is wrong size. It must be " << dec << ROMSIZE << " bytes." << endl;
         cerr << "Failed to open file: Invalid filesize: " << dec << romfile.tellg() << " bytes" << endl;
+        return 2;
     }
     romfile.seekg(0, ios::beg);
     romfile.read((char *)romcontents, ROMSIZE);
